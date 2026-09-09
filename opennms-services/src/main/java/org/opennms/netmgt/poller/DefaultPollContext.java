@@ -320,6 +320,15 @@ public class DefaultPollContext implements PollContext, EventListener, Initializ
         final Integer outageId = getQueryManager().openOutagePendingLostEventId(svc.getNodeId(),
                 svc.getIpAddr(), svc.getSvcName(), svcLostEvent.getDate());
 
+        if (outageId == null) {
+            // The outage row could not be persisted (already logged by the query manager).
+            // Don't send a misleading outageCreated event or attempt to update a
+            // non-existent outage once the lost event id arrives.
+            LOG.warn("openOutage: no outage was persisted for: {} on {}; skipping outageCreated event.",
+                    svc.getSvcName(), svc.getIpAddr());
+            return;
+        }
+
         // Defer updating the outage with the event id until we receive back
         // from the event bus
         final Runnable r = new Runnable() {

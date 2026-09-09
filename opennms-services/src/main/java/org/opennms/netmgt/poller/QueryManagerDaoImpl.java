@@ -111,10 +111,22 @@ public class QueryManagerDaoImpl implements QueryManager {
     @Override
     public Integer openOutagePendingLostEventId(int nodeId, String ipAddr, String svcName, Date lostTime) {
         LOG.info("opening outage for {}:{}:{} @ {}", nodeId, ipAddr, svcName, lostTime);
-        final OnmsMonitoredService service = m_monitoredServiceDao.get(nodeId, InetAddressUtils.addr(ipAddr), svcName);
-        final OnmsOutage outage = new OnmsOutage(lostTime, service);
-        m_outageDao.saveOrUpdate(outage);
-        return outage.getId();
+        try {
+            return m_transcationOps.execute((TransactionCallback<Integer>) transactionStatus -> {
+                final OnmsMonitoredService service = m_monitoredServiceDao.get(nodeId, InetAddressUtils.addr(ipAddr), svcName);
+                if (service == null) {
+                    LOG.warn("Failed to open outage for {}:{}:{} @ {}. The service could not be found.",
+                            nodeId, ipAddr, svcName, lostTime);
+                    return null;
+                }
+                final OnmsOutage outage = new OnmsOutage(lostTime, service);
+                m_outageDao.saveOrUpdate(outage);
+                return outage.getId();
+            });
+        } catch (Exception e) {
+            LOG.error("Failed to open outage for {}:{}:{} @ {}.", nodeId, ipAddr, svcName, lostTime, e);
+            return null;
+        }
     }
 
     /** {@inheritDoc} */
